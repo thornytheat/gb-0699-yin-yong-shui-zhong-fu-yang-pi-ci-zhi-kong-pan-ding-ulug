@@ -25,6 +25,13 @@ docker compose config --quiet
 - M5 空白污染：`/module/5`，独立计算 `POST /api/5`。
 - M6 批次放行：`/module/6`，独立计算 `POST /api/6`。
 - M7 复测追踪：`/module/7`，独立计算 `POST /api/7`。
+- M8 证据谱系：`/module/8`，独立计算 `POST /api/8`。
+
+## 共享证据与版本化补样
+
+一支平行样同时登记为加标本底时，平行与回收两条结论共享同一次测量。M8 按物理行号把结论锚定到测量并生成证据组，共享测量显式标记，不计为两次独立证明；M6 放行结果逐检测批列出共享测量行与独立测量行。
+
+补入独立样走 `POST /api/runs/{id}/supplement`（参数 data_version、text）：库外校验重算通过后单事务追加不可变版本，仅 affected 中的检测批结论发生变化，旧版本经 `GET /api/runs/{id}/versions` 可查；更新失败整笔回滚保留旧版，同原文/同补充内容重跑不新增记录。
 
 ## 输入与输出
 

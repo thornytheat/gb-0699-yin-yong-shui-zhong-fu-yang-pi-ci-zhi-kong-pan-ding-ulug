@@ -5,16 +5,17 @@ from fastapi.templating import Jinja2Templates
 from app.errors import BusinessError, object_payload
 from app.pipeline import run, sample_text
 from app import store
+from app.supplement import supplement_run
 from app.exporter import evidence_csv
 from app.numbers import display_number
 from pathlib import Path
 import importlib
-app=FastAPI(title='饮用水重复样与批次质控判定')
-app.mount("/static",StaticFiles(directory=Path(__file__).parent/"static"),name="static")
-templates=Jinja2Templates(directory=Path(__file__).parent/"templates")
-templates.env.filters["display_number"]=display_number
-MODULES=['样品接收', '检测项契约', '平行样核对', '加标回收', '空白污染', '批次放行', '复测追踪']
-for n,slug in enumerate(['samples', 'contract', 'parallel', 'spikes', 'blanks', 'release', 'retest'],1):
+app = FastAPI(title='饮用水重复样与批次质控判定')
+app.mount("/static", StaticFiles(directory=Path(__file__).parent/"static"), name="static")
+templates = Jinja2Templates(directory=Path(__file__).parent/"templates")
+templates.env.filters["display_number"] = display_number
+MODULES = ['样品接收', '检测项契约', '平行样核对', '加标回收', '空白污染', '批次放行', '复测追踪', '证据谱系']
+for n, slug in enumerate(['samples', 'contract', 'parallel', 'spikes', 'blanks', 'release', 'retest', 'evidence'], 1):
     app.include_router(importlib.import_module(f"app.modules.m{n}_{slug}.handler").router)
 @app.exception_handler(BusinessError)
 async def domain_error(request,exc):
@@ -23,12 +24,17 @@ async def domain_error(request,exc):
 def health(): return {"status":"ok"}
 @app.get("/",response_class=HTMLResponse)
 def home(request:Request): return page(request,1)
-@app.get("/module/{module}",response_class=HTMLResponse)
-def page(request:Request,module:int):
-    if module not in range(1,8): raise BusinessError("MODULE","模块不存在",404)
-    ident=request.query_params.get("run_id")
-    item=store.get(ident) if ident else store.save(sample_text(),run(sample_text()))
-    return templates.TemplateResponse(request=request,name="workbench.html",context={"title":'饮用水重复样与批次质控判定',"modules":MODULES,"active":module,"run":item,"report":item["result"]["reports"][module-1]})
+@app.get("/module/{module}", response_class=HTMLResponse)
+def page(request: Request, module: int):
+    if module not in range(1, 9):
+        raise BusinessError("MODULE", "模块不存在", 404)
+    ident = request.query_params.get("run_id")
+    item = store.get(ident) if ident else store.save(sample_text(), run(sample_text()))
+    return templates.TemplateResponse(request=request, name="workbench.html",
+                                      context={"title": '饮用水重复样与批次质控判定',
+                                               "modules": MODULES, "active": module,
+                                               "run": item,
+                                               "report": item["result"]["reports"][module-1]})
 @app.post("/api/run")
 def calculate(payload:object=Body(default=None)):
     payload=object_payload(payload)
@@ -38,7 +44,24 @@ def calculate(payload:object=Body(default=None)):
 @app.get("/api/runs")
 def list_runs(): return store.history()
 @app.get("/api/runs/{ident}")
-def run_detail(ident:str): return store.get(ident)
+def run_detail(ident: str):
+    return store.get(ident)
+
+
+@app.get("/api/runs/{ident}/versions")
+def run_versions(ident: str):
+    return {"id": ident, "versions": store.versions(ident)}
+
+
+@app.post("/api/runs/{ident}/supplement")
+def supplement(ident: str, payload: object = Body(...)):
+    payload = object_payload(payload)
+    text = payload.get("text")
+    if not isinstance(text, str):
+        raise BusinessError("TEXT", "补充输入须为CSV文本")
+    if type(payload.get("data_version")) is not int:
+        raise BusinessError("REVISION", "数据版本须为整数")
+    return supplement_run(ident, payload["data_version"], text)
 @app.post("/api/review")
 def review(payload:object=Body(...)):
     payload=object_payload(payload)

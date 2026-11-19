@@ -1,0 +1,1 @@
+const marks=[...document.querySelectorAll('[data-ratio]')],upper=Math.max(1,...marks.map(mark=>Number(mark.dataset.ratio)));marks.forEach(mark=>{mark.style.width=Math.min(100,Number(mark.dataset.ratio)/upper*100)+'%';mark.title=Number(mark.dataset.ratio).toFixed(3)+' 倍阈值'});document.getElementById('pair-max').textContent=upper.toFixed(3)+' ×';
